@@ -2,9 +2,6 @@
 
 The **Egress Sidecar** is a core component of OpenSandbox that provides **FQDN-based egress control**. It runs alongside the sandbox application container (sharing the same network namespace) and enforces declared network policies.
 
-> **Status**: Implementing. Currently supports Layer 1 (DNS Proxy). Layer 2 (Network Filter) is on the roadmap.
-> See [OSEP-0001: FQDN-based Egress Control](../../oseps/0001-fqdn-based-egress-control.md) for the detailed design.
-
 ## Features
 
 - **FQDN-based Allowlist**: Control outbound traffic by domain name (e.g., `api.github.com`).
@@ -59,8 +56,9 @@ The egress control is implemented as a **Sidecar** that shares the network names
 
 - Default listen address: `:18080` (override with `OPENSANDBOX_EGRESS_HTTP_ADDR`).
 - Endpoints:
-  - `GET /policy` — returns the current policy.
-  - `POST /policy` — replaces the policy. Empty/whitespace/`{}`/`null` resets to default deny-all.
+- `GET /policy` — returns the current policy.
+- `POST /policy` — replaces the policy. Empty/whitespace/`{}`/`null` resets to default deny-all.
+  - `PATCH /policy` — merge/append rules at runtime. Body **must** be a JSON array of egress rules (not wrapped in an object). New rules are placed before existing ones (same target overrides), so a later PATCH can override prior wildcard denies with a more specific allow, and vice versa.
 
 Examples:
 
@@ -83,6 +81,16 @@ Examples:
   ```bash
   curl -XPOST http://127.0.0.1:18080/policy \
     -d '{"defaultAction":"deny","egress":[{"action":"allow","target":"*.example.com"},{"action":"allow","target":"203.0.113.0/24"},{"action":"deny","target":"*.bad.com"}]}'
+  ```
+- Merge-only PATCH (override wildcard deny with a specific allow):
+  ```bash
+  # baseline: deny *.cloudflare.com
+  curl -XPOST http://127.0.0.1:18080/policy \
+    -d '{"defaultAction":"allow","egress":[{"action":"deny","target":"*.cloudflare.com"}]}'
+
+  # allow a specific host; PATCH rules are prepended, so this wins
+  curl -XPATCH http://127.0.0.1:18080/policy \
+    -d '[{"action":"allow","target":"www.cloudflare.com"}]'
   ```
 
 ## Build & Run
