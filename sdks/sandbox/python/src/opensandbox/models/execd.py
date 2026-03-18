@@ -166,6 +166,27 @@ class Execution(BaseModel):
         """Add a new execution result."""
         self.result.append(result)
 
+    @property
+    def text(self) -> str:
+        """Return combined stdout text."""
+        return "\n".join(msg.text for msg in self.logs.stdout)
+
+    def __str__(self) -> str:
+        """Return a human-readable summary of the execution."""
+        parts: list[str] = []
+
+        if self.logs.stdout:
+            parts.append("\n".join(msg.text for msg in self.logs.stdout))
+
+        if self.logs.stderr:
+            stderr_text = "\n".join(msg.text for msg in self.logs.stderr)
+            parts.append(f"[stderr]\n{stderr_text}")
+
+        if self.error:
+            parts.append(f"[error] {self.error.name}: {self.error.value}")
+
+        return "\n".join(parts)
+
     model_config = ConfigDict(populate_by_name=True)
 
 

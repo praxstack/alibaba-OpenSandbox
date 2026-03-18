@@ -25,6 +25,12 @@ from opensandbox.api.lifecycle.models.create_sandbox_response import (
 from opensandbox.api.lifecycle.models.image_spec import ImageSpec as ApiImageSpec
 from opensandbox.api.lifecycle.models.sandbox import Sandbox as ApiSandbox
 from opensandbox.api.lifecycle.types import UNSET
+from opensandbox.models.execd import (
+    Execution,
+    ExecutionError,
+    ExecutionLogs,
+    OutputMessage,
+)
 from opensandbox.models.filesystem import MoveEntry, WriteEntry
 from opensandbox.models.sandboxes import (
     OSSFS,
@@ -259,3 +265,53 @@ def test_volume_rejects_multiple_backends() -> None:
             pvc=PVC(claimName="my-pvc"),
             mountPath="/mnt/test",
         )
+
+
+# ============================================================================
+# Execution __str__ and .text Tests
+# ============================================================================
+
+
+def _make_output(text: str, *, is_error: bool = False) -> OutputMessage:
+    return OutputMessage(text=text, timestamp=0, is_error=is_error)
+
+
+def test_execution_str_stdout_only() -> None:
+    ex = Execution(
+        logs=ExecutionLogs(
+            stdout=[_make_output("hello"), _make_output("world")],
+        ),
+    )
+    assert str(ex) == "hello\nworld"
+
+
+def test_execution_str_with_stderr() -> None:
+    ex = Execution(
+        logs=ExecutionLogs(
+            stdout=[_make_output("ok")],
+            stderr=[_make_output("warn")],
+        ),
+    )
+    assert str(ex) == "ok\n[stderr]\nwarn"
+
+
+def test_execution_str_with_error() -> None:
+    ex = Execution(
+        error=ExecutionError(name="RuntimeError", value="boom", timestamp=0),
+    )
+    assert str(ex) == "[error] RuntimeError: boom"
+
+
+def test_execution_str_empty() -> None:
+    ex = Execution()
+    assert str(ex) == ""
+
+
+def test_execution_text_property() -> None:
+    ex = Execution(
+        logs=ExecutionLogs(
+            stdout=[_make_output("line1"), _make_output("line2")],
+            stderr=[_make_output("ignored")],
+        ),
+    )
+    assert ex.text == "line1\nline2"
