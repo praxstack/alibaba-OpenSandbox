@@ -20,14 +20,12 @@ All endpoints return plain text for easy consumption by humans and AI agents.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import PlainTextResponse
 
-from opensandbox_server.services.factory import create_sandbox_service
+from opensandbox_server.api.lifecycle import sandbox_service
 
 router = APIRouter(tags=["DevOps"])
-
-sandbox_service = create_sandbox_service()
 
 
 @router.get(
@@ -104,13 +102,15 @@ def get_sandbox_diagnostics_summary(
     sections.append(f"Sandbox ID: {sandbox_id}")
     sections.append("=" * 72)
 
-    # Inspect
+    # Inspect — let HTTPException (e.g. 404) propagate so callers get a proper error
     sections.append("")
     sections.append("-" * 40)
     sections.append("INSPECT")
     sections.append("-" * 40)
     try:
         sections.append(sandbox_service.get_sandbox_inspect(sandbox_id))
+    except HTTPException:
+        raise
     except Exception as exc:
         sections.append(f"[error] {exc}")
 
@@ -121,6 +121,8 @@ def get_sandbox_diagnostics_summary(
     sections.append("-" * 40)
     try:
         sections.append(sandbox_service.get_sandbox_events(sandbox_id, limit=event_limit))
+    except HTTPException:
+        raise
     except Exception as exc:
         sections.append(f"[error] {exc}")
 
@@ -131,6 +133,8 @@ def get_sandbox_diagnostics_summary(
     sections.append("-" * 40)
     try:
         sections.append(sandbox_service.get_sandbox_logs(sandbox_id, tail=tail))
+    except HTTPException:
+        raise
     except Exception as exc:
         sections.append(f"[error] {exc}")
 

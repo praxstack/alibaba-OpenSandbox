@@ -22,22 +22,23 @@ by reading Docker container state. Mixed into DockerSandboxService.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
-
-from docker.errors import DockerException
-
-if TYPE_CHECKING:
-    pass
+import time
 
 
-def _parse_since(since: str) -> int:
-    """Parse a human-readable duration string (e.g. '10m', '1h') into seconds."""
+def _parse_since_to_timestamp(since: str) -> int:
+    """Parse a human-readable duration string (e.g. '10m', '1h') into a Unix timestamp.
+
+    Docker interprets the ``since`` parameter as an absolute Unix timestamp,
+    so we convert the relative duration to ``now - duration``.
+    """
     m = re.fullmatch(r"(\d+)\s*([smhd])", since.strip().lower())
     if not m:
-        return 600  # default 10m
-    value, unit = int(m.group(1)), m.group(2)
-    multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
-    return value * multipliers[unit]
+        seconds = 600  # default 10m
+    else:
+        value, unit = int(m.group(1)), m.group(2)
+        multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+        seconds = value * multipliers[unit]
+    return int(time.time()) - seconds
 
 
 class DockerDiagnosticsMixin:
@@ -47,11 +48,8 @@ class DockerDiagnosticsMixin:
         container = self._get_container_by_sandbox_id(sandbox_id)
         kwargs: dict = {"tail": tail, "timestamps": True}
         if since:
-            kwargs["since"] = _parse_since(since)
-        try:
-            output = container.logs(**kwargs)
-        except DockerException as exc:
-            return f"[error] Failed to retrieve logs: {exc}"
+            kwargs["since"] = _parse_since_to_timestamp(since)
+        output = container.logs(**kwargs)
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
         return output or "(no logs)"

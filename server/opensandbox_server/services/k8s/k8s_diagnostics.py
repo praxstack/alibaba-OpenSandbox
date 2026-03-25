@@ -85,10 +85,7 @@ class K8sDiagnosticsMixin:
         if since:
             kwargs["since_seconds"] = _parse_since(since)
 
-        try:
-            log_text = core_v1.read_namespaced_pod_log(**kwargs)
-        except Exception as exc:
-            return f"[error] Failed to retrieve pod logs: {exc}"
+        log_text = core_v1.read_namespaced_pod_log(**kwargs)
         return log_text or "(no logs)"
 
     def get_sandbox_inspect(self, sandbox_id: str) -> str:
@@ -183,14 +180,11 @@ class K8sDiagnosticsMixin:
         pod_name = pod.metadata.name
         core_v1 = self.k8s_client.get_core_v1_api()
 
-        try:
-            events_resp = core_v1.list_namespaced_event(
-                namespace=self.namespace,
-                field_selector=f"involvedObject.name={pod_name}",
-                limit=limit,
-            )
-        except Exception as exc:
-            return f"[error] Failed to retrieve events: {exc}"
+        events_resp = core_v1.list_namespaced_event(
+            namespace=self.namespace,
+            field_selector=f"involvedObject.name={pod_name}",
+            limit=limit,
+        )
 
         if not events_resp.items:
             return "(no events)"
