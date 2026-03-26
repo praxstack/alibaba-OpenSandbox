@@ -13,7 +13,7 @@ pip install opensandbox-cli
 ### uv
 
 ```bash
-uv add opensandbox-cli
+uv tool install opensandbox-cli
 ```
 
 ### pipx (recommended for global CLI usage)
@@ -46,7 +46,8 @@ opensandbox-server
 
 ```bash
 cd cli
-uv pip install -e .
+uv sync
+uv run osb --help
 ```
 
 ![Install CLI](assets/install_cli.png)
@@ -204,6 +205,18 @@ The CLI resolves configuration from multiple sources with the following priority
 2. **Environment variables** — `OPEN_SANDBOX_API_KEY`, `OPEN_SANDBOX_DOMAIN`, `OPEN_SANDBOX_PROTOCOL`, `OPEN_SANDBOX_REQUEST_TIMEOUT`, `OPEN_SANDBOX_OUTPUT`
 3. **Config file** — `~/.opensandbox/config.toml` (or path specified via `--config`)
 4. **SDK defaults**
+
+## Development
+
+For local CLI development in this monorepo, prefer `uv sync` from the `cli/` directory. That workflow honors the local `[tool.uv.sources]` overrides for `opensandbox` and `opensandbox-code-interpreter`, so the CLI resolves against the checked-out SDKs instead of published packages.
+
+```bash
+cd cli
+uv sync
+uv run osb --help
+```
+
+If you specifically need an editable install into another environment, install the SDK dependencies from their local paths first, then install the CLI.
 
 ### Config File Format
 
