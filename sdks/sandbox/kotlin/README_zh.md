@@ -232,12 +232,14 @@ SandboxPool pool = SandboxPool.builder()
     .poolName("demo-pool")
     .ownerId("worker-1")
     .maxIdle(3)
+    .warmupReadyTimeout(Duration.ofSeconds(45))
     .stateStore(new InMemoryPoolStateStore()) // 单机实现
     .connectionConfig(config)
     .creationSpec(
         PoolCreationSpec.builder()
             .image("ubuntu:22.04")
             .entrypoint(java.util.List.of("tail", "-f", "/dev/null"))
+            .extension("storage.id", "dataset-001")
             .build()
     )
     .build();

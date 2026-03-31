@@ -201,8 +201,13 @@ class SandboxPool internal constructor(
                     val sandbox =
                         Sandbox.connector()
                             .sandboxId(sandboxId)
+                            .connectTimeout(config.idleAcquireReadyTimeout)
+                            .healthCheckPollingInterval(config.idleAcquireHealthCheckPollingInterval)
+                            .skipHealthCheck(config.idleAcquireSkipHealthCheck)
                             .connectionConfig(connectionConfig)
-                            .connect()
+                            .run {
+                                config.idleAcquireHealthCheck?.let { healthCheck(it) } ?: this
+                            }.connect()
                     sandboxTimeout?.let { sandbox.renew(it) }
                     logger.debug(
                         "Acquire from idle: pool_name={} sandbox_id={} policy={}",
@@ -401,17 +406,16 @@ class SandboxPool internal constructor(
     }
 
     private fun buildSandboxFromSpec(): Sandbox {
-        val b =
-            Sandbox.builder()
-                .imageSpec(creationSpec.imageSpec)
-                .entrypoint(creationSpec.entrypoint)
-                .resource(creationSpec.resource)
-                .env(creationSpec.env)
-                .metadata(creationSpec.metadata)
-                .volumes(creationSpec.volumes ?: emptyList())
-                .timeout(idleTtl)
-                .connectionConfig(connectionConfig)
-        val builder = creationSpec.networkPolicy?.let { b.networkPolicy(it) } ?: b
+        val builder =
+            creationSpec.applyToBuilder(
+                Sandbox.builder()
+                    .timeout(idleTtl)
+                    .readyTimeout(config.warmupReadyTimeout)
+                    .healthCheckPollingInterval(config.warmupHealthCheckPollingInterval)
+                    .skipHealthCheck(config.warmupSkipHealthCheck)
+                    .connectionConfig(connectionConfig),
+            )
+        config.warmupHealthCheck?.let { builder.healthCheck(it) }
         return builder.build()
     }
 
@@ -601,6 +605,46 @@ class SandboxPool internal constructor(
             return this
         }
 
+        fun idleAcquireReadyTimeout(idleAcquireReadyTimeout: Duration): Builder {
+            configBuilder.idleAcquireReadyTimeout(idleAcquireReadyTimeout)
+            return this
+        }
+
+        fun idleAcquireHealthCheckPollingInterval(idleAcquireHealthCheckPollingInterval: Duration): Builder {
+            configBuilder.idleAcquireHealthCheckPollingInterval(idleAcquireHealthCheckPollingInterval)
+            return this
+        }
+
+        fun idleAcquireHealthCheck(idleAcquireHealthCheck: (Sandbox) -> Boolean): Builder {
+            configBuilder.idleAcquireHealthCheck(idleAcquireHealthCheck)
+            return this
+        }
+
+        fun idleAcquireSkipHealthCheck(idleAcquireSkipHealthCheck: Boolean = true): Builder {
+            configBuilder.idleAcquireSkipHealthCheck(idleAcquireSkipHealthCheck)
+            return this
+        }
+
+        fun warmupReadyTimeout(warmupReadyTimeout: Duration): Builder {
+            configBuilder.warmupReadyTimeout(warmupReadyTimeout)
+            return this
+        }
+
+        fun warmupHealthCheckPollingInterval(warmupHealthCheckPollingInterval: Duration): Builder {
+            configBuilder.warmupHealthCheckPollingInterval(warmupHealthCheckPollingInterval)
+            return this
+        }
+
+        fun warmupHealthCheck(warmupHealthCheck: (Sandbox) -> Boolean): Builder {
+            configBuilder.warmupHealthCheck(warmupHealthCheck)
+            return this
+        }
+
+        fun warmupSkipHealthCheck(warmupSkipHealthCheck: Boolean = true): Builder {
+            configBuilder.warmupSkipHealthCheck(warmupSkipHealthCheck)
+            return this
+        }
+
         fun drainTimeout(drainTimeout: Duration): Builder {
             configBuilder.drainTimeout(drainTimeout)
             return this
@@ -613,4 +657,18 @@ class SandboxPool internal constructor(
             return SandboxPool(cfg)
         }
     }
+}
+
+internal fun PoolCreationSpec.applyToBuilder(builder: Sandbox.Builder): Sandbox.Builder {
+    val configuredBuilder =
+        builder
+            .imageSpec(imageSpec)
+            .entrypoint(entrypoint)
+            .resource(resource)
+            .env(env)
+            .metadata(metadata)
+            .extensions(extensions)
+            .volumes(volumes ?: emptyList())
+
+    return networkPolicy?.let { configuredBuilder.networkPolicy(it) } ?: configuredBuilder
 }
